@@ -1,1 +1,34 @@
-<h1>Hello World!</h1>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>jared.sh — jared.sh</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="terminal-wrap">
+      <div class="terminal">
+        <div class="terminal-header">
+          <div class="dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <div class="term-title">jared.sh — running</div>
+        </div>
+
+        <div class="terminal-body" id="terminalBody">
+          <div id="output" class="output" role="log" aria-live="polite"></div>
+        </div>
+
+        <div class="terminal-controls">
+          <button id="rerun">Run script</button>
+          <a class="contact-link" href="mailto:hi@jared.sh">Email: hi@jared.sh</a>
+        </div>
+      </div>
+    </main>
+
+    <script src="terminal.js"></script>
+  </body>
+</html>
