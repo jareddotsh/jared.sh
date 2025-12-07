@@ -1,96 +1,232 @@
-// Terminal-style typewriter with clickable links (v2)
-// This version appends anchors to the DOM first, then types into them character-by-character
-// so links visibly type like normal text.
+// Interactive terminal-style typewriter with commands + executable rerun
 
 document.addEventListener('DOMContentLoaded', () => {
   const outputEl = document.getElementById('output');
   const rerunBtn = document.getElementById('rerun');
 
-  const lines = [
+  const bootLines = [
     '$ ./jared.sh',
     'running jared.sh — displaying contact info...',
     '',
     'Name: Jared Frank',
-    'Profession: Cybersecurity Consultant',
+    'Profession: Creative Technologist',
     'Email: hi@jared.sh',
     'GitHub: https://github.com/jareddotsh',
     'Location: Nashville, TN',
     '',
-    'Thanks for stopping by. Feel free to reach out!',
+    'Type "help" to see available commands.',
   ];
 
-  let stopping = false;
-  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  let inputEnabled = false;
+  let currentInput = '';
+  let isTypingOutput = false;
+  let runId = 0; // used to cancel in-flight typing
 
-  function clearCursor(){
+  /* ---------------- utilities ---------------- */
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function clearCursor() {
     const c = outputEl.querySelector('.cursor');
     if (c) c.remove();
   }
-  function showCursor(){
+
+  function moveCursorToEnd(mode = 'idle') {
     clearCursor();
-    const span = document.createElement('span');
-    span.className = 'cursor';
-    span.setAttribute('aria-hidden','true');
-    outputEl.appendChild(span);
+    const cursor = document.createElement('span');
+    cursor.className = `cursor ${mode}`;
+    cursor.setAttribute('aria-hidden', 'true');
+    outputEl.appendChild(cursor);
   }
 
-  function tokenizeLine(text){
-    const re = /(https?:\/\/[^\s]+|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)/g;
+  /* ---------------- link parsing ---------------- */
+
+  function tokenizeLine(text) {
+    const re =
+      /(https?:\/\/[^\s]+|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)/g;
+
     const parts = [];
     let lastIndex = 0;
     let m;
-    while ((m = re.exec(text)) !== null){
-      if (m.index > lastIndex) parts.push({type:'text', value: text.slice(lastIndex, m.index)});
-      parts.push({type:'link', value: m[0]});
+
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > lastIndex)
+        parts.push({ type: 'text', value: text.slice(lastIndex, m.index) });
+      parts.push({ type: 'link', value: m[0] });
       lastIndex = re.lastIndex;
     }
-    if (lastIndex < text.length) parts.push({type:'text', value: text.slice(lastIndex)});
+
+    if (lastIndex < text.length)
+      parts.push({ type: 'text', value: text.slice(lastIndex) });
+
     return parts;
   }
 
-  async function typeLines(){
-    outputEl.innerHTML = '';
-    for (let i = 0; i < lines.length; i++){
-      await typeLine(lines[i]);
-      if (i < lines.length - 1) outputEl.appendChild(document.createTextNode('\n'));
-      if (stopping) break;
-    }
-    outputEl.appendChild(document.createTextNode('\n$ '));
-    showCursor();
-  }
+  /* ---------------- typing output ---------------- */
 
-  // Type a line where links are typed visibly.
-  async function typeLine(text){
+  async function typeLine(text, myRunId) {
+    isTypingOutput = true;
     const tokens = tokenizeLine(text);
-    for (const token of tokens){
-      if (token.type === 'text'){
-        for (let i = 0; i < token.value.length; i++){
-          outputEl.appendChild(document.createTextNode(token.value[i]));
-          await sleep(20 + Math.random() * 60);
-          if (stopping) return;
+
+    for (const token of tokens) {
+      if (myRunId !== runId) return;
+
+      if (token.type === 'text') {
+        for (const ch of token.value) {
+          if (myRunId !== runId) return;
+          clearCursor();
+          outputEl.appendChild(document.createTextNode(ch));
+          moveCursorToEnd('typing');
+          await sleep(20 + Math.random() * 50);
         }
-      } else if (token.type === 'link'){
+      } else {
         const a = document.createElement('a');
         const isEmail = token.value.includes('@') && !token.value.startsWith('http');
-        a.href = isEmail ? ('mailto:' + token.value) : token.value;
+        a.href = isEmail ? `mailto:${token.value}` : token.value;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        // append the anchor immediately so users see the element
+
+        clearCursor();
         outputEl.appendChild(a);
-        // type into the anchor character by character
-        for (let i = 0; i < token.value.length; i++){
-          a.appendChild(document.createTextNode(token.value[i]));
-          await sleep(20 + Math.random() * 60);
-          if (stopping) return;
+        moveCursorToEnd('typing');
+
+        for (const ch of token.value) {
+          if (myRunId !== runId) return;
+          a.appendChild(document.createTextNode(ch));
+          moveCursorToEnd('typing');
+          await sleep(20 + Math.random() * 50);
         }
       }
     }
+
+    isTypingOutput = false;
   }
 
-  rerunBtn?.addEventListener('click', ()=>{
-    stopping = false;
-    typeLines();
+  async function runBootSequence() {
+    runId++; // invalidate any in-flight output
+    const myRunId = runId;
+
+    outputEl.innerHTML = '';
+    inputEnabled = false;
+    currentInput = '';
+
+    for (let i = 0; i < bootLines.length; i++) {
+      await typeLine(bootLines[i], myRunId);
+      if (i < bootLines.length - 1)
+        outputEl.appendChild(document.createTextNode('\n'));
+      if (myRunId !== runId) return;
+    }
+
+    outputEl.appendChild(document.createTextNode('\n\n$ '));
+    inputEnabled = true;
+    moveCursorToEnd('idle');
+  }
+
+  /* ---------------- commands ---------------- */
+
+  const commands = {
+    help: async myRunId => {
+      await typeLine('Available commands:', myRunId);
+      outputEl.appendChild(document.createTextNode('\n'));
+      await typeLine('  help        Show this message', myRunId);
+      outputEl.appendChild(document.createTextNode('\n'));
+      await typeLine('  about       About Jared', myRunId);
+      outputEl.appendChild(document.createTextNode('\n'));
+      await typeLine('  contact     Contact information', myRunId);
+      outputEl.appendChild(document.createTextNode('\n'));
+      await typeLine('  clear       Clear the terminal', myRunId);
+    },
+
+    about: async myRunId => {
+      await typeLine(
+        'Jared Frank is a Creative Technologist focused on consulting and cybersecurity, coming up with creative solutions to complex problems.',
+        myRunId
+      );
+    },
+
+    contact: async myRunId => {
+      await typeLine('Email: hi@jared.sh', myRunId);
+      outputEl.appendChild(document.createTextNode('\n'));
+      await typeLine('GitHub: https://github.com/jareddotsh', myRunId);
+    },
+
+    clear: async () => {
+      outputEl.innerHTML = '';
+    },
+
+    './jared.sh': async () => {
+      await runBootSequence();
+    },
+
+    'ls' : async myRunId => {
+      await typeLine('jared.sh', myRunId);
+    }
+  };
+
+  async function runCommand(cmd) {
+    if (!cmd) return;
+
+    const myRunId = runId;
+    const command = commands[cmd.toLowerCase()];
+
+    if (command) {
+      await command(myRunId);
+    } else {
+      await typeLine(`command not found: ${cmd}`, myRunId);
+    }
+  }
+
+  /* ---------------- keyboard input ---------------- */
+
+  document.addEventListener('keydown', async e => {
+    if (!inputEnabled || isTypingOutput) return;
+
+    if (e.key === 'Enter') {
+      inputEnabled = false;
+      clearCursor();
+      outputEl.appendChild(document.createTextNode('\n'));
+
+      await runCommand(currentInput.trim());
+      currentInput = '';
+
+      if (!isTypingOutput) {
+        outputEl.appendChild(document.createTextNode('\n$ '));
+        inputEnabled = true;
+        moveCursorToEnd('idle');
+      }
+      return;
+    }
+
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (currentInput.length > 0) {
+        currentInput = currentInput.slice(0, -1);
+        // Find and remove the last text node (not the cursor)
+        for (let i = outputEl.childNodes.length - 1; i >= 0; i--) {
+          const node = outputEl.childNodes[i];
+          if (node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('cursor'))) {
+            outputEl.removeChild(node);
+            break;
+          }
+        }
+        moveCursorToEnd('typing');
+      }
+      return;
+    }
+
+    if (e.key.length !== 1) return;
+
+    currentInput += e.key;
+    clearCursor();
+    outputEl.appendChild(document.createTextNode(e.key));
+    moveCursorToEnd('typing');
   });
 
-  typeLines();
+  /* ---------------- rerun button ---------------- */
+
+  rerunBtn?.addEventListener('click', runBootSequence);
+
+  /* ---------------- start ---------------- */
+
+  runBootSequence();
 });

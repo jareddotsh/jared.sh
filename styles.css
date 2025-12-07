@@ -30,7 +30,7 @@ body{
 .dot.green{background:#28c840}
 .term-title{color:var(--muted);font-size:0.9rem}
 
-.terminal-body{padding:18px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.02));min-height:260px}
+.terminal-body{padding:18px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.02));height:400px;overflow-y:auto}
 .output{white-space:pre-wrap;margin:0;color:#9fe6a0;font-size:15px}
 .output a{color:var(--accent);text-decoration:underline}
 .prompt{color:#a8ff9a}
@@ -56,3 +56,23 @@ body{
   .terminal-wrap{padding:0 8px}
 }
 
+.cursor {
+  display: inline-block;
+  width: 0.6ch;
+  background: currentColor;
+  margin-left: 2px;
+}
+
+.cursor.idle {
+  animation: blink 1.2s step-start infinite;
+}
+
+.cursor.typing {
+  animation: none;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
