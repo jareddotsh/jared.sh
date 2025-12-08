@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
           clearCursor();
           outputEl.appendChild(document.createTextNode(ch));
           moveCursorToEnd('typing');
-          await sleep(20 + Math.random() * 50);
+          await sleep(10 + Math.random() * 20);
         }
       } else {
         const a = document.createElement('a');
@@ -178,6 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   /* ---------------- keyboard input ---------------- */
 
+  // Create hidden input for mobile support
+  const hiddenInput = document.createElement('input');
+  hiddenInput.type = 'text';
+  hiddenInput.style.position = 'absolute';
+  hiddenInput.style.left = '-9999px';
+  hiddenInput.style.opacity = '0';
+  document.body.appendChild(hiddenInput);
+
   document.addEventListener('keydown', async e => {
     if (!inputEnabled || isTypingOutput) return;
 
@@ -188,11 +196,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       await runCommand(currentInput.trim());
       currentInput = '';
+      hiddenInput.value = '';
 
       if (!isTypingOutput) {
         outputEl.appendChild(document.createTextNode('\n$ '));
         inputEnabled = true;
         moveCursorToEnd('idle');
+        hiddenInput.focus();
       }
       return;
     }
@@ -220,6 +230,61 @@ document.addEventListener('DOMContentLoaded', () => {
     clearCursor();
     outputEl.appendChild(document.createTextNode(e.key));
     moveCursorToEnd('typing');
+  });
+
+  // Handle mobile input via hidden input field
+  hiddenInput.addEventListener('input', async e => {
+    if (!inputEnabled || isTypingOutput) return;
+
+    const newValue = hiddenInput.value;
+    const lastChar = newValue[newValue.length - 1];
+
+    if (newValue.length > currentInput.length) {
+      // Character added
+      currentInput = newValue;
+      clearCursor();
+      outputEl.appendChild(document.createTextNode(lastChar));
+      moveCursorToEnd('typing');
+    } else if (newValue.length < currentInput.length) {
+      // Character removed (backspace)
+      currentInput = newValue;
+      for (let i = outputEl.childNodes.length - 1; i >= 0; i--) {
+        const node = outputEl.childNodes[i];
+        if (node.nodeType === Node.TEXT_NODE || (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('cursor'))) {
+          outputEl.removeChild(node);
+          break;
+        }
+      }
+      moveCursorToEnd('typing');
+    }
+  });
+
+  // Focus hidden input when output is clicked
+  outputEl.addEventListener('click', () => {
+    if (inputEnabled) {
+      hiddenInput.focus();
+    }
+  });
+
+  // Handle Enter on hidden input for mobile
+  hiddenInput.addEventListener('keydown', async e => {
+    if (e.key === 'Enter' && inputEnabled && !isTypingOutput) {
+      e.preventDefault();
+      inputEnabled = false;
+      clearCursor();
+      outputEl.appendChild(document.createTextNode('\n'));
+
+      await runCommand(currentInput.trim());
+      currentInput = '';
+      hiddenInput.value = '';
+
+      if (!isTypingOutput) {
+        outputEl.appendChild(document.createTextNode('\n$ '));
+        inputEnabled = true;
+        moveCursorToEnd('idle');
+        hiddenInput.focus();
+      }
+    }
   });
 
   /* ---------------- rerun button ---------------- */
